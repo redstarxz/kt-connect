@@ -13,6 +13,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"encoding/hex"
+	"crypto/md5"
 )
 
 func AutoMesh(svc *coreV1.Service) error {
@@ -30,9 +32,15 @@ func AutoMesh(svc *coreV1.Service) error {
 
 	// Parse or generate mesh kv
 	meshKey, meshVersion := getVersion(opt.Get().Mesh.VersionMark)
+
 	versionMark := meshKey + ":" + meshVersion
 	opt.Store.Mesh = versionMark
-
+    // 覆盖meshVersion
+	if len(meshVersion) > 16 {
+		h := md5.New() 
+		h.Write([]byte(meshVersion))
+ 		meshVersion = hex.EncodeToString(h.Sum(nil))[8:24]
+	}
 	portToNames := general.GetTargetPorts(svc)
 	ports := make(map[int]int)
 	for _, specPort := range svc.Spec.Ports {
@@ -80,6 +88,7 @@ func AutoMesh(svc *coreV1.Service) error {
 	routerLabels := map[string]string{
 		util.KtRole:   util.RoleRouter,
 	}
+	// 这里必须改变参数
 	if err = createRouter(routerPodName, svc.Name, ports, routerLabels, versionMark); err != nil {
 		return err
 	}
@@ -170,7 +179,7 @@ func createRouter(routerPodName string, svcName string, ports map[int]int, label
 		}
 		// Router not exist or just terminated
 		labels[util.KtTarget] = util.RandomString(20)
-		annotations := map[string]string{util.KtRefCount: "1", util.KtConfig: fmt.Sprintf("service=%s", svcName)}
+		annotations := map[string]string{util.KtRefCount: "1", util.KtConfig: fmt.Sprintf("service=%s", svcName),"eks.tke.cloud.tencent.com/registry-http-endpoint": "10.77.0.26:8888"}
 		if _, err = cluster.Ins().CreateRouterPod(routerPodName, labels, annotations, ports); err != nil {
 			log.Error().Err(err).Msgf("Failed to create router pod")
 			return err

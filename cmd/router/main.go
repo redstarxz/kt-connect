@@ -8,6 +8,8 @@ import (
 	"github.com/rs/zerolog/log"
 	"os"
 	"strings"
+	"encoding/hex"
+	"crypto/md5"
 )
 
 func init() {
@@ -58,11 +60,20 @@ func setup(args []string) {
 		return
 	}
 	header, version := splitVersionMark(args[2])
+
+	key := version
+	if len(version) > 16 {
+		h := md5.New() 
+		h.Write([]byte(version))
+ 		key = hex.EncodeToString(h.Sum(nil))[8:24]
+	}	
+	useVersion :=make(map[string]string)
+	useVersion[key] = version
 	ktConf := router.KtConf{
 		Service:  args[0],
 		Ports:    getPorts(args[1]),
 		Header:   header,
-		Versions: []string{version},
+		Versions: useVersion,
 	}
 	err := router.WriteKtConf(&ktConf)
 	if err != nil {
@@ -99,7 +110,7 @@ func remove(args []string) {
 
 func splitVersionMark(mark string) (string, string) {
 	splits := strings.Split(mark, ":")
-	return strings.ReplaceAll(splits[0], "-", "_"), splits[1]
+	return strings.ReplaceAll(splits[0], "-", "_"),splits[1] 
 }
 
 func getPorts(portsParameter string) [][]string {
@@ -118,17 +129,26 @@ func updateRoute(header, version, action string) error {
 	if ktConf.Header != header {
 		return fmt.Errorf("specified header '%s' no match mesh pod header '%s'", header, ktConf.Header)
 	}
+	
+	key := version
+	if len(version) > 16 {
+		h := md5.New() 
+		h.Write([]byte(version))
+ 		key = hex.EncodeToString(h.Sum(nil))[8:24]
+	}
+
 	switch action {
 	case actionAdd:
-		ktConf.Versions = append(ktConf.Versions, version)
+		//ktConf.Versions = append(ktConf.Versions, version)
+		ktConf.Versions[key] = version
 	case actionRemove:
-		versions := ktConf.Versions
-		for i, v := range versions {
-			if v == version {
-				ktConf.Versions = append(versions[:i], versions[i+1:]...)
-				break
-			}
-		}
+		delete(ktConf.Versions, key)
+		//for i, v := range versions {
+		//	if v == version {
+			//	ktConf.Versions = append(versions[:i], versions[i+1:]...)
+				//break
+			//}
+		//}
 	}
 	err = router.WriteKtConf(ktConf)
 	if err != nil {

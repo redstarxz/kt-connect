@@ -4,5 +4,5 @@ type KtConf struct {
 	Service  string
 	Ports    [][]string
 	Header   string
-	Versions []string
+	Versions map[string]string
 }

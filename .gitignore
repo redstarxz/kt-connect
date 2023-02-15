@@ -10,5 +10,6 @@ artifacts/
 dist/
 node_modules/
 note/
+hack/
 .jvmrc
 .DS_Store
